@@ -87,5 +87,23 @@ app.post("/sign-up", validate(authSchema), async (req, res) => {
     return res.status(201).json({ message: "User created successfully" })
 })
 
+app.post("/login", validate(authSchema), async (req, res) => {
+    const { email, password } = req.body
+
+    const user = await findUser(email)
+
+    if (!user) {
+        return res.status(404).json({ error: "User could not be foud" })
+    }
+
+    const isValidPassword = await bcrypt.compare(password, user.password)
+
+    if (!isValidPassword) {
+        return res.status(401).json({ error: "Invalid password" })
+    }
+
+    return res.status(200).json({ message: "Logged in successfully" })
+})  
+
 const port = process.env.PORT || 3000
 app.listen(port, () => console.log(`Server is running on: http://localhost:${port}`))
