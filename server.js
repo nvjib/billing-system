@@ -44,13 +44,8 @@ const findUser = async (email) => {
 
         return rows[0] || null
     } catch (error) {
-        console.error(error)
+        throw error
     }
-}
-
-const hashPassword = async (password) => {
-    const salt = await bcrypt.genSalt(10)
-    return await bcrypt.hash(password, salt)
 }
 
 const createUser = async ({ email, password }) => {
@@ -64,45 +59,58 @@ const createUser = async ({ email, password }) => {
 
         return rows[0] || null
     } catch (error) {
-        console.error(error)
+        throw error
     }
 }
 
 app.post("/sign-up", validate(authSchema), async (req, res) => {
     const { email, password } = req.body
 
-    const existingUser = await findUser(email)
+    const normalisedEmail = email.toLowerCase()
 
-    if (existingUser) {
-        return res.status(400).json({ error: "User already exists" })
+    try {
+        const existingUser = await findUser(normalisedEmail)
+
+        if (existingUser) {
+            return res.status(400).json({ error: "User already exists" })
+        }
+    
+        const salt = await bcrypt.genSalt(10)
+        const hashedPassword = await bcrypt.hash(password, salt)
+    
+        const newUser = await createUser({
+            email: normalisedEmail,
+            password: hashedPassword
+        })
+    
+        return res.status(201).json({ message: "User created successfully" })
+    } catch (error) {
+        return res.status(500).json({ error: "Internal server error" })
     }
-
-    const hashedPassword = await hashPassword(password)
-
-    const newUser = await createUser({
-        email,
-        password: hashedPassword
-    })
-
-    return res.status(201).json({ message: "User created successfully" })
 })
 
 app.post("/login", validate(authSchema), async (req, res) => {
     const { email, password } = req.body
 
-    const user = await findUser(email)
+    const normalisedEmail = email.toLowerCase()
 
-    if (!user) {
-        return res.status(404).json({ error: "User could not be foud" })
+    try {
+        const user = await findUser(normalisedEmail)
+
+        if (!user) {
+            return res.status(404).json({ error: "User could not be found" })
+        }
+    
+        const isValidPassword = await bcrypt.compare(password, user.password)
+    
+        if (!isValidPassword) {
+            return res.status(401).json({ error: "Invalid password" })
+        }
+    
+        return res.status(200).json({ message: "Logged in successfully" })
+    } catch (error) {
+        return res.status(500).json({ error: "Internal server error" })
     }
-
-    const isValidPassword = await bcrypt.compare(password, user.password)
-
-    if (!isValidPassword) {
-        return res.status(401).json({ error: "Invalid password" })
-    }
-
-    return res.status(200).json({ message: "Logged in successfully" })
 })  
 
 const port = process.env.PORT || 3000
